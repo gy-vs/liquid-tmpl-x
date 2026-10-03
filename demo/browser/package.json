@@ -1,0 +1,16 @@
+{
+  "name": "liquidjs-demo-browser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Liquidjs Demo for Browser Usage",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo not implemented",
+    "start": "http-server -c-1 "
+  },
+  "license": "ISC",
+  "dependencies": {
+    "http-server": "^0.11.1",
+    "liquidjs": "*"
+  }
+}

@@ -1,0 +1,7 @@
+{% layout 'html.liquid' %}
+{%header title | capitalize%}
+<ul>
+  {% for todo in todos %}
+    {% render 'todo.liquid' with todo, index: forloop.index%}
+  {% endfor %}
+</ul>

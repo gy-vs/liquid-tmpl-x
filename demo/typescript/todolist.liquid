@@ -1,0 +1,7 @@
+{%header title%}
+
+<ul>
+  {% for todo in todos %}
+  <li>{{forloop.index}} - {{todo}}</li>
+  {% endfor %}
+</ul>

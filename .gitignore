@@ -1,0 +1,28 @@
+# logs
+*.log
+npm-debug.log*
+
+# cache
+.rpt2_cache
+coverage/
+.nyc_output/
+
+# modules
+node_modules/
+
+# tmp
+docs/public/js/liquid.browser.min.js
+docs/themes/navy/layout/partial/all-contributors.swig
+docs/themes/navy/layout/partial/financial-contributors.swig
+dist/
+demo/*/yarn.json
+
+# editors
+.*.swp
+.vscode
+
+# local secrets
+.env
+.env.*
+*.pem
+*.key
