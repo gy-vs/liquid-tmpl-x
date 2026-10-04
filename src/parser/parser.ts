@@ -1,15 +1,15 @@
-import { Limiter, toPromise, assert, isTagToken, isOutputToken, ParseError } from '../util'
+import { Limiter, toPromise, assert, isTagToken, isOutputToken, isPromise, ParseError } from '../util'
 import { Tokenizer } from './tokenizer'
 import { ParseStream } from './parse-stream'
 import { TopLevelToken, OutputToken } from '../tokens'
 import { Template, Output, HTML } from '../template'
-import { LiquidCache } from '../cache'
-import { FS, Loader, LookupType } from '../fs'
+import { LiquidCache, CachedTemplates, MTIME } from '../cache'
+import { FS, Loader, LookupType, RenderState } from '../fs'
 import { LiquidError, LiquidErrors } from '../util/error'
 import type { Liquid } from '../liquid'
 
 export class Parser {
-  public parseFile: (file: string, sync?: boolean, type?: LookupType, currentFile?: string) => Generator<unknown, Template[], Template[] | string>
+  public parseFile: (file: string, sync?: boolean, type?: LookupType, currentFile?: string, state?: RenderState) => Generator<unknown, Template[], Template[] | string>
 
   private liquid: Liquid
   private fs: FS
@@ -66,13 +66,34 @@ export class Parser {
   public parseStream (tokens: TopLevelToken[]) {
     return new ParseStream(tokens, (token, tokens) => this.parseToken(token, tokens))
   }
-  private * _parseFileCached (file: string, sync?: boolean, type: LookupType = LookupType.Root, currentFile?: string): Generator<unknown, Template[], Template[]> {
+  private * _parseFileCached (file: string, sync?: boolean, type: LookupType = LookupType.Root, currentFile?: string, state?: RenderState): Generator<unknown, Template[], Template[]> {
     const cache = this.cache!
-    const key = this.loader.shouldLoadRelative(file) ? currentFile + ',' + file : type + ':' + file
-    const tpls = yield cache.read(key)
-    if (tpls) return tpls
+    const key = this.cacheKey(file, type, currentFile)
+    let entry = yield cache.read(key)
+    if (entry && isPromise<CachedTemplates>(entry)) entry = yield entry
+    const tpls = entry as CachedTemplates | undefined
+    if (tpls && !this.canStat(sync)) return tpls
+    if (tpls) {
+      let mtime: number | undefined
+      try {
+        const stat = (yield this.loader.stat(file, type, sync, currentFile, state)) as unknown as { filepath: string; mtime?: number }
+        mtime = stat.mtime
+      } catch (err) {
+        // file no longer resolves (e.g. deleted): drop stale cache and surface the lookup error
+        cache.remove(key)
+        throw err
+      }
+      const cached = tpls[MTIME]
+      // invalidate on deletion, on a known different mtime, or when fs.mtime is unreliable (returns undefined for an existing file);
+      // an entry without a tracked mtime (e.g. pre-populated custom cache) is left untouched
+      if (mtime === undefined || (cached !== undefined && mtime !== cached)) {
+        cache.remove(key)
+      } else {
+        return tpls
+      }
+    }
 
-    const task = this._parseFile(file, sync, type, currentFile)
+    const task = this._parseFile(file, sync, type, currentFile, state)
     // sync mode: exec the task and cache the result
     // async mode: cache the task before exec
     const taskOrTpl = sync ? yield task : toPromise(task)
@@ -80,8 +101,27 @@ export class Parser {
     // note: concurrent tasks will be reused, cache for failed task is removed until its end
     try { return yield taskOrTpl } catch (err) { cache.remove(key); throw err }
   }
-  private * _parseFile (file: string, sync?: boolean, type: LookupType = LookupType.Root, currentFile?: string): Generator<unknown, Template[], string> {
-    const filepath = yield this.loader.lookup(file, type, sync, currentFile)
-    return this.parse(sync ? this.fs.readFileSync(filepath) : yield this.fs.readFile(filepath), filepath)
+  private canStat (sync?: boolean) {
+    return !!(sync ? this.fs.mtimeSync : this.fs.mtime)
+  }
+  private * _parseFile (file: string, sync?: boolean, type: LookupType = LookupType.Root, currentFile?: string, state?: RenderState): Generator<unknown, Template[], string> {
+    // when cache is off, keep the legacy load path exactly (lookup + read, no extra stat)
+    const trackMtime = !!this.cache && this.canStat(sync)
+    let filepath: string
+    let mtime: number | undefined
+    if (trackMtime) {
+      const stat = (yield this.loader.stat(file, type, sync, currentFile, state)) as unknown as { filepath: string; mtime?: number }
+      filepath = stat.filepath
+      mtime = stat.mtime
+    } else {
+      filepath = yield this.loader.lookup(file, type, sync, currentFile)
+    }
+    const html = sync ? this.fs.readFileSync(filepath) : yield this.fs.readFile(filepath)
+    const tpls = this.parse(html, filepath) as CachedTemplates
+    if (trackMtime && mtime !== undefined) tpls[MTIME] = mtime
+    return tpls
+  }
+  private cacheKey (file: string, type: LookupType, currentFile?: string) {
+    return this.loader.shouldLoadRelative(file) ? currentFile + ',' + file : type + ':' + file
   }
 }

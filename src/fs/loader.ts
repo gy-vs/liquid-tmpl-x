@@ -1,4 +1,4 @@
-import { FS } from './fs'
+import { FS, RenderState } from './fs'
 import { assert, escapeRegex } from '../util'
 
 export interface LoaderOptions {
@@ -39,6 +39,25 @@ export class Loader {
       if (sync ? fs.existsSync(filepath) : yield fs.exists(filepath)) return filepath
     }
     throw this.lookupError(file, dirs)
+  }
+
+  /**
+   * resolve `file` to a filepath and its last modification time.
+   * `undefined` mtime means the file does not exist or the fs provides no mtime.
+   * results are memoized in `state` for the lifetime of one render.
+   */
+  public * stat (file: string, type: LookupType, sync?: boolean, currentFile?: string, state?: RenderState): Generator<unknown, { filepath: string; mtime?: number }, unknown> {
+    const filepath = (yield this.lookup(file, type, sync, currentFile)) as string
+    const memo = state?.mtimes
+    if (memo?.has(filepath)) {
+      return { filepath, mtime: memo.get(filepath) }
+    }
+    const { fs } = this.options
+    let mtime: number | undefined
+    if (sync) mtime = fs.mtimeSync?.(filepath)
+    else if (fs.mtime) mtime = (yield fs.mtime(filepath)) as number | undefined
+    memo?.set(filepath, mtime)
+    return { filepath, mtime }
   }
 
   public * candidates (file: string, dirs: string[], currentFile?: string, enforceRoot?: boolean) {

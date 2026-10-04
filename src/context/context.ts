@@ -2,6 +2,7 @@ import { getPerformance } from '../util/performance'
 import { Drop } from '../drop/drop'
 import { __assign } from 'tslib'
 import { NormalizedFullOptions, defaultOptions, RenderOptions } from '../liquid-options'
+import { RenderState } from '../fs'
 import { Scope } from './scope'
 import { hasOwnProperty, isArray, isNil, isUndefined, isString, isFunction, toLiquid, InternalUndefinedVariableError, toValueSync, isObject, Limiter, toValue } from '../util'
 
@@ -38,6 +39,8 @@ export class Context {
   public ownPropertyOnly: boolean;
   public memoryLimit: Limiter;
   public renderLimit: Limiter;
+  /** per-render state shared with file loaders (e.g. mtime memo); inherited by spawned contexts */
+  public renderState?: RenderState;
   public constructor (env: object = {}, opts: NormalizedFullOptions = defaultOptions, renderOptions: RenderOptions = {}, { memoryLimit, renderLimit }: { [key: string]: Limiter } = {}) {
     this.sync = !!renderOptions.sync
     this.opts = opts
@@ -103,7 +106,7 @@ export class Context {
     return this.scopes[0]
   }
   public spawn (scope = {}) {
-    return new Context(scope, this.opts, {
+    const ctx = new Context(scope, this.opts, {
       sync: this.sync,
       globals: this.globals,
       strictVariables: this.strictVariables
@@ -111,6 +114,8 @@ export class Context {
       renderLimit: this.renderLimit,
       memoryLimit: this.memoryLimit
     })
+    ctx.renderState = this.renderState
+    return ctx
   }
   private findScope (key: string | number) {
     for (let i = this.scopes.length - 1; i >= 0; i--) {

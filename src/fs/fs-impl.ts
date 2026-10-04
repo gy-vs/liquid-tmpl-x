@@ -1,10 +1,10 @@
 import { promisify } from '../util'
 import { sep, resolve as nodeResolve, extname, dirname as nodeDirname } from 'path'
-import { stat, statSync, readFile as nodeReadFile, readFileSync as nodeReadFileSync } from 'fs'
+import { stat, statSync, Stats, readFile as nodeReadFile, readFileSync as nodeReadFileSync } from 'fs'
 import { requireResolve } from './node-require'
 
 type NodeReadFile = (file: string, encoding: string, cb: ((err: Error | null, result: string) => void)) => void
-const statAsync = promisify(stat)
+const statAsync = promisify<string, Stats>(stat as unknown as (file: string, cb: (err: Error | null, result: Stats) => void) => void)
 const readFileAsync = promisify<string, string, string>(nodeReadFile as NodeReadFile)
 
 export async function exists (filepath: string) {
@@ -28,6 +28,21 @@ export function existsSync (filepath: string) {
 }
 export function readFileSync (filepath: string) {
   return nodeReadFileSync(filepath, 'utf8')
+}
+export async function mtime (filepath: string) {
+  try {
+    const stat = await statAsync(filepath)
+    return stat.mtimeMs
+  } catch (err) {
+    return undefined
+  }
+}
+export function mtimeSync (filepath: string) {
+  try {
+    return statSync(filepath).mtimeMs
+  } catch (err) {
+    return undefined
+  }
 }
 export function resolve (root: string, file: string, ext: string) {
   if (!extname(file)) file += ext

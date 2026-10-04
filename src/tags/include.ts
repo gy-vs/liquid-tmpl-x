@@ -36,7 +36,7 @@ export default class extends Tag {
     ctx.setRegister('blockMode', BlockMode.OUTPUT)
     const scope = (yield hash.render(ctx)) as Scope
     if (withVar) scope[filepath] = yield evalToken(withVar, ctx)
-    const templates = (yield liquid._parsePartialFile(filepath, ctx.sync, this['currentFile'])) as Template[]
+    const templates = (yield liquid._parsePartialFile(filepath, ctx.sync, this['currentFile'], ctx.renderState)) as Template[]
     ctx.push(ctx.opts.jekyllInclude ? { include: scope } : scope)
     yield renderer.renderTemplates(templates, ctx, emitter)
     ctx.pop()

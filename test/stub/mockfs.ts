@@ -8,7 +8,7 @@ interface FileDescriptor {
 }
 
 let files: { [path: string]: FileDescriptor } = {}
-const { readFile, exists, readFileSync, existsSync } = fs
+const { readFile, exists, readFileSync, existsSync, mtime, mtimeSync } = fs
 
 export function mock (options: { [path: string]: (string | FileDescriptor) }) {
   forOwn(options, (val, key) => {
@@ -30,6 +30,14 @@ export function mock (options: { [path: string]: (string | FileDescriptor) }) {
   };
   (fs as any).existsSync = function (path: string) {
     return !!files[path]
+  };
+  (fs as any).mtime = async function (path: string) {
+    return fs.mtimeSync(path)
+  };
+  (fs as any).mtimeSync = function (path: string) {
+    // mock files have no real mtime: report a constant value so cached
+    // templates stay valid regardless of subsequent `mock()` rewrites
+    return files[path] === undefined ? undefined : 0
   }
 }
 
@@ -38,5 +46,7 @@ export function restore () {
   (fs as any).readFileSync = readFileSync;
   (fs as any).existsSync = existsSync;
   (fs as any).readFile = readFile;
-  (fs as any).exists = exists
+  (fs as any).exists = exists;
+  (fs as any).mtime = mtime;
+  (fs as any).mtimeSync = mtimeSync
 }

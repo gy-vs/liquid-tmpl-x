@@ -2,6 +2,7 @@ import { Context } from './context'
 import { toPromise, toValueSync, isFunction, forOwn, isString, strictUniq } from './util'
 import { TagClass, createTagClass, TagImplOptions, FilterImplOptions, Template, Value, StaticAnalysisOptions, StaticAnalysis, analyze, analyzeSync, SegmentArray } from './template'
 import { LookupType } from './fs/loader'
+import { RenderState } from './fs'
 import { Render } from './render'
 import { Parser } from './parser'
 import { tags } from './tags'
@@ -56,14 +57,14 @@ export class Liquid {
     return toValueSync(this._parseAndRender(html, scope, { ...renderOptions, sync: true }))
   }
 
-  public _parsePartialFile (file: string, sync?: boolean, currentFile?: string) {
-    return new Parser(this).parseFile(file, sync, LookupType.Partials, currentFile)
+  public _parsePartialFile (file: string, sync?: boolean, currentFile?: string, state?: RenderState) {
+    return new Parser(this).parseFile(file, sync, LookupType.Partials, currentFile, state)
   }
-  public _parseLayoutFile (file: string, sync?: boolean, currentFile?: string) {
-    return new Parser(this).parseFile(file, sync, LookupType.Layouts, currentFile)
+  public _parseLayoutFile (file: string, sync?: boolean, currentFile?: string, state?: RenderState) {
+    return new Parser(this).parseFile(file, sync, LookupType.Layouts, currentFile, state)
   }
-  public _parseFile (file: string, sync?: boolean, lookupType?: LookupType, currentFile?: string): Generator<unknown, Template[]> {
-    return new Parser(this).parseFile(file, sync, lookupType, currentFile)
+  public _parseFile (file: string, sync?: boolean, lookupType?: LookupType, currentFile?: string, state?: RenderState): Generator<unknown, Template[]> {
+    return new Parser(this).parseFile(file, sync, lookupType, currentFile, state)
   }
   public async parseFile (file: string, lookupType?: LookupType): Promise<Template[]> {
     return toPromise<Template[]>(new Parser(this).parseFile(file, false, lookupType))
@@ -72,8 +73,12 @@ export class Liquid {
     return toValueSync<Template[]>(new Parser(this).parseFile(file, true, lookupType))
   }
   public * _renderFile (file: string, ctx: Context | object | undefined, renderFileOptions: RenderFileOptions): Generator<any> {
-    const templates = (yield this._parseFile(file, renderFileOptions.sync, renderFileOptions.lookupType)) as Template[]
-    return yield this._render(templates, ctx, renderFileOptions)
+    const context = ctx instanceof Context ? ctx : new Context(ctx, this.options, renderFileOptions)
+    const { fs, cache } = this.options
+    const state: RenderState | undefined = cache && (fs.mtime || fs.mtimeSync) ? { mtimes: new Map() } : undefined
+    const templates = (yield this._parseFile(file, renderFileOptions.sync, renderFileOptions.lookupType, undefined, state)) as Template[]
+    if (state) context.renderState = state
+    return yield this._render(templates, context, renderFileOptions)
   }
   public async renderFile (file: string, ctx?: Context | object, renderFileOptions?: RenderFileOptions) {
     return toPromise(this._renderFile(file, ctx, { ...renderFileOptions, sync: false }))
