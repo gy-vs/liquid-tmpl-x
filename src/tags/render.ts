@@ -67,12 +67,12 @@ export default class extends Tag {
       scope['forloop'] = new ForloopDrop(collection.length, value.getText(), alias)
       for (const item of collection) {
         scope[alias] = item
-        const templates = (yield liquid._parsePartialFile(filepath, childCtx.sync, this['currentFile'])) as Template[]
+        const templates = (yield liquid._parsePartialFile(filepath, childCtx.sync, this['currentFile'], childCtx.mtimeCache)) as Template[]
         yield liquid.renderer.renderTemplates(templates, childCtx, emitter)
         scope['forloop'].next()
       }
     } else {
-      const templates = (yield liquid._parsePartialFile(filepath, childCtx.sync, this['currentFile'])) as Template[]
+      const templates = (yield liquid._parsePartialFile(filepath, childCtx.sync, this['currentFile'], childCtx.mtimeCache)) as Template[]
       yield liquid.renderer.renderTemplates(templates, childCtx, emitter)
     }
   }

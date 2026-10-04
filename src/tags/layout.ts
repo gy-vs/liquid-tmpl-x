@@ -27,7 +27,7 @@ export default class extends Tag {
     }
     const filepath = (yield renderFilePath(this.file, ctx, liquid)) as string
     assert(filepath, () => `illegal file path "${filepath}"`)
-    const templates = (yield liquid._parseLayoutFile(filepath, ctx.sync, this['currentFile'])) as Template[]
+    const templates = (yield liquid._parseLayoutFile(filepath, ctx.sync, this['currentFile'], ctx.mtimeCache)) as Template[]
 
     // render remaining contents and store rendered results
     ctx.setRegister('blockMode', BlockMode.STORE)

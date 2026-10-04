@@ -50,4 +50,24 @@ describe('fs-impl', function () {
       expect(content).toContain('should read content if exists')
     })
   })
+  describe('.mtime', function () {
+    it('should reject when not exist', async function () {
+      await expect(fs.mtime!('/foo/bar')).rejects.toBeTruthy()
+    })
+    it('should return a Date when exists', async function () {
+      const mtime = await fs.mtime!(__filename)
+      expect(Object.prototype.toString.call(mtime)).toBe('[object Date]')
+      expect(typeof (mtime as Date).getTime()).toBe('number')
+    })
+  })
+  describe('.mtimeSync', function () {
+    it('should throw when not exist', function () {
+      expect(() => fs.mtimeSync!('/foo/bar')).toThrow('ENOENT')
+    })
+    it('should return a Date when exists', function () {
+      const mtime = fs.mtimeSync!(__filename)
+      expect(Object.prototype.toString.call(mtime)).toBe('[object Date]')
+      expect(typeof (mtime as Date).getTime()).toBe('number')
+    })
+  })
 })

@@ -1,10 +1,11 @@
 import { promisify } from '../util'
 import { sep, resolve as nodeResolve, extname, dirname as nodeDirname } from 'path'
-import { stat, statSync, readFile as nodeReadFile, readFileSync as nodeReadFileSync } from 'fs'
+import { stat, statSync, Stats, readFile as nodeReadFile, readFileSync as nodeReadFileSync } from 'fs'
 import { requireResolve } from './node-require'
+import { MaybeMtime } from './fs'
 
 type NodeReadFile = (file: string, encoding: string, cb: ((err: Error | null, result: string) => void)) => void
-const statAsync = promisify(stat)
+const statAsync = promisify<string, Stats>(stat)
 const readFileAsync = promisify<string, string, string>(nodeReadFile as NodeReadFile)
 
 export async function exists (filepath: string) {
@@ -14,6 +15,12 @@ export async function exists (filepath: string) {
   } catch (err) {
     return false
   }
+}
+export async function mtime (filepath: string): Promise<MaybeMtime> {
+  return (await statAsync(filepath)).mtime
+}
+export function mtimeSync (filepath: string): MaybeMtime {
+  return statSync(filepath).mtime
 }
 export function readFile (filepath: string) {
   return readFileAsync(filepath, 'utf8')

@@ -3,6 +3,7 @@ import { Drop } from '../drop/drop'
 import { __assign } from 'tslib'
 import { NormalizedFullOptions, defaultOptions, RenderOptions } from '../liquid-options'
 import { Scope } from './scope'
+import { MtimeCache } from '../fs/fs'
 import { hasOwnProperty, isArray, isNil, isUndefined, isString, isFunction, toLiquid, InternalUndefinedVariableError, toValueSync, isObject, Limiter, toValue } from '../util'
 
 type PropertyKey = string | number;
@@ -38,7 +39,13 @@ export class Context {
   public ownPropertyOnly: boolean;
   public memoryLimit: Limiter;
   public renderLimit: Limiter;
-  public constructor (env: object = {}, opts: NormalizedFullOptions = defaultOptions, renderOptions: RenderOptions = {}, { memoryLimit, renderLimit }: { [key: string]: Limiter } = {}) {
+  /**
+   * mtime lookups memoized for the current render, keyed by resolved filepath.
+   * Shared across spawned contexts so a partial included many times in one render is stated only once.
+   * `null` means the file has no mtime (e.g. removed).
+   */
+  public mtimeCache: MtimeCache
+  public constructor (env: object = {}, opts: NormalizedFullOptions = defaultOptions, renderOptions: RenderOptions = {}, { memoryLimit, renderLimit, mtimeCache }: { memoryLimit?: Limiter; renderLimit?: Limiter; mtimeCache?: MtimeCache } = {}) {
     this.sync = !!renderOptions.sync
     this.opts = opts
     this.globals = renderOptions.globals ?? opts.globals
@@ -47,6 +54,7 @@ export class Context {
     this.ownPropertyOnly = renderOptions.ownPropertyOnly ?? opts.ownPropertyOnly
     this.memoryLimit = memoryLimit ?? new Limiter('memory alloc', renderOptions.memoryLimit ?? opts.memoryLimit)
     this.renderLimit = renderLimit ?? new Limiter('template render', getPerformance().now() + (renderOptions.renderLimit ?? opts.renderLimit))
+    this.mtimeCache = mtimeCache ?? new Map()
   }
   public getRegister (key: string) {
     return (this.registers[key] = this.registers[key] || {})
@@ -109,7 +117,8 @@ export class Context {
       strictVariables: this.strictVariables
     }, {
       renderLimit: this.renderLimit,
-      memoryLimit: this.memoryLimit
+      memoryLimit: this.memoryLimit,
+      mtimeCache: this.mtimeCache
     })
   }
   private findScope (key: string | number) {
